@@ -222,16 +222,16 @@ keyFunc on keyCode keys =
         32 ->
             { keys | space = on }
 
-        37 ->
+        65 ->
             { keys | left = on }
 
-        39 ->
+        68 ->
             { keys | right = on }
 
-        38 ->
+        87 ->
             { keys | up = on }
 
-        40 ->
+        83 ->
             { keys | down = on }
 
         _ ->
@@ -374,7 +374,7 @@ view { size, person, crateTexture, grassTexture } =
 message : String
 message =
     "Walk around with a first person perspective.\n"
-        ++ "Arrows keys to move, space bar to jump."
+        ++ "W-A-S-D keys to move, space bar to jump."
 
 
 scene : { width : Float, height : Float } -> Person -> Texture -> Texture -> List Entity
