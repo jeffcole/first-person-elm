@@ -26,8 +26,32 @@ const isLocked = element =>
   element === document.msPointerLockElement ||
   element === document.webkitPointerLockElement;
 
+const move = event => {
+  const movementX =
+    event.movementX ||
+    event.mozMovementX ||
+    event.msMovementX ||
+    event.webkitMovementX ||
+    0;
+
+  const movementY =
+    event.movementY ||
+    event.mozMovementY ||
+    event.msMovementY ||
+    event.webkitMovementY ||
+    0;
+
+  app.ports.pointerMovement.send([movementX, movementY]);
+};
+
 const pointerLockChange = () => {
-  app.ports.pointerLockChanged.send(isLocked(body));
+  if (isLocked(body)) {
+    body.addEventListener("mousemove", move, false);
+    app.ports.pointerLockChanged.send(true);
+  } else {
+    body.removeEventListener("mousemove", move, false);
+    app.ports.pointerLockChanged.send(false);
+  }
 };
 
 [

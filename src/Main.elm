@@ -33,6 +33,8 @@ type alias Model =
 type alias Person =
     { position : Vec3
     , velocity : Vec3
+    , horizontalAngle : Float
+    , verticalAngle : Float
     }
 
 
@@ -44,6 +46,7 @@ type Msg
     | Resize Int Int
     | PointerLockRequested
     | PointerLockChanged Encode.Value
+    | PointerMoved Encode.Value
 
 
 type alias Keys =
@@ -84,7 +87,7 @@ init flagsValue =
             decodeFlags flagsValue
     in
     ( { texture = Nothing
-      , person = Person (vec3 0 eyeLevel -10) (vec3 0 0 0)
+      , person = Person (vec3 0 eyeLevel -10) (vec3 0 0 0) (degrees 90) 0
       , keys = Keys False False False False False
       , size = { width = 0, height = 0 }
       , pointerLockAcquired = False
@@ -105,6 +108,7 @@ subscriptions _ =
         , onResize Resize
         , onClick (Decode.succeed PointerLockRequested)
         , pointerLockChanged PointerLockChanged
+        , pointerMovement PointerMoved
         ]
 
 
@@ -121,6 +125,9 @@ port requestPointerLock : () -> Cmd msg
 
 
 port pointerLockChanged : (Encode.Value -> msg) -> Sub msg
+
+
+port pointerMovement : (Encode.Value -> msg) -> Sub msg
 
 
 
@@ -183,6 +190,24 @@ update action model =
         PointerLockChanged lockAcquired ->
             ( { model | pointerLockAcquired = defaultToFalse lockAcquired }, Cmd.none )
 
+        PointerMoved movement ->
+            ( { model | person = turn (defaultToNone movement) model.person }, Cmd.none )
+
+
+turn : ( Int, Int ) -> Person -> Person
+turn ( dx, dy ) person =
+    let
+        horizontal =
+            person.horizontalAngle + toFloat dx / 500
+
+        vertical =
+            person.verticalAngle - toFloat dy / 500
+    in
+    { person
+        | horizontalAngle = horizontal
+        , verticalAngle = clamp (degrees -45) (degrees 45) vertical
+    }
+
 
 keyFunc : Bool -> Int -> Keys -> Keys
 keyFunc on keyCode keys =
@@ -208,32 +233,68 @@ keyFunc on keyCode keys =
 
 move : Keys -> Person -> Person
 move { left, right, up, down, space } person =
-    let
-        direction a b =
-            if a == b then
-                0
-
-            else if a then
-                1
-
-            else
-                -1
-
-        vy =
-            if space then
-                2
-
-            else
-                Vec3.getY person.velocity
-    in
     if Vec3.getY person.position <= eyeLevel then
+        let
+            forwardBackDirection =
+                flatten (lookDirection person)
+
+            sideToSideDirection =
+                Mat4.transform (Mat4.makeRotate (degrees -90) Vec3.j) forwardBackDirection
+
+            forwardBackVelocity =
+                Vec3.scale (collapseKeys up down) forwardBackDirection
+
+            sideToSideVelocity =
+                Vec3.scale (collapseKeys right left) sideToSideDirection
+
+            verticalVelocity =
+                if space then
+                    vec3 0 2 0
+
+                else
+                    vec3 0 (Vec3.getY person.velocity) 0
+
+            totalVelocity =
+                List.foldl
+                    Vec3.add
+                    (vec3 0 0 0)
+                    [ forwardBackVelocity
+                    , sideToSideVelocity
+                    , verticalVelocity
+                    ]
+        in
         { person
             | velocity =
-                vec3 (direction left right) vy (direction up down)
+                if totalVelocity == vec3 0 0 0 then
+                    totalVelocity
+
+                else
+                    Vec3.scale 2 (Vec3.normalize totalVelocity)
         }
 
     else
         person
+
+
+flatten : Vec3 -> Vec3
+flatten v =
+    let
+        r =
+            Vec3.toRecord v
+    in
+    Vec3.normalize (vec3 r.x 0 r.z)
+
+
+collapseKeys : Bool -> Bool -> Float
+collapseKeys key1 key2 =
+    if key1 == key2 then
+        0
+
+    else if key1 then
+        1
+
+    else
+        -1
 
 
 physics : Float -> Person -> Person
@@ -315,7 +376,11 @@ scene { width, height } person texture =
         perspective =
             Mat4.mul
                 (Mat4.makePerspective 45 (width / height) 0.01 100)
-                (Mat4.makeLookAt person.position (Vec3.add person.position Vec3.k) Vec3.j)
+                (Mat4.makeLookAt
+                    person.position
+                    (Vec3.add person.position (lookDirection person))
+                    Vec3.j
+                )
     in
     [ WebGL.entity
         vertexShader
@@ -325,6 +390,18 @@ scene { width, height } person texture =
         , perspective = perspective
         }
     ]
+
+
+lookDirection : Person -> Vec3
+lookDirection person =
+    let
+        h =
+            person.horizontalAngle
+
+        v =
+            person.verticalAngle
+    in
+    vec3 (cos h) (sin v) (sin h)
 
 
 
@@ -459,3 +536,19 @@ missingTextures =
 defaultToFalse : Encode.Value -> Bool
 defaultToFalse bool =
     Result.withDefault False (Decode.decodeValue Decode.bool bool)
+
+
+defaultToNone : Encode.Value -> ( Int, Int )
+defaultToNone tuple =
+    Result.withDefault ( 0, 0 ) (decodeTuple tuple)
+
+
+decodeTuple : Encode.Value -> Result Decode.Error ( Int, Int )
+decodeTuple tuple =
+    Decode.decodeValue
+        (Decode.map2
+            Tuple.pair
+            (Decode.index 0 Decode.int)
+            (Decode.index 1 Decode.int)
+        )
+        tuple
