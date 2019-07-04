@@ -8,6 +8,7 @@ import Html.Attributes exposing (height, style, width)
 import Html.Events exposing (keyCode)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline as DecodePipeline
+import Json.Encode as Encode
 import Math.Matrix4 as Mat4 exposing (Mat4)
 import Math.Vector2 as Vec2 exposing (Vec2, vec2)
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
@@ -25,6 +26,7 @@ type alias Model =
     , keys : Keys
     , size : { width : Float, height : Float }
     , person : Person
+    , pointerLockAcquired : Bool
     }
 
 
@@ -41,6 +43,7 @@ type Msg
     | GetViewport Viewport
     | Resize Int Int
     | PointerLockRequested
+    | PointerLockChanged Encode.Value
 
 
 type alias Keys =
@@ -84,6 +87,7 @@ init flagsValue =
       , person = Person (vec3 0 eyeLevel -10) (vec3 0 0 0)
       , keys = Keys False False False False False
       , size = { width = 0, height = 0 }
+      , pointerLockAcquired = False
       }
     , Cmd.batch
         [ Task.attempt TextureLoaded (Texture.load flags.textures.woodCratePath)
@@ -100,6 +104,7 @@ subscriptions _ =
         , onKeyUp (Decode.map (KeyChange False) keyCode)
         , onResize Resize
         , onClick (Decode.succeed PointerLockRequested)
+        , pointerLockChanged PointerLockChanged
         ]
 
 
@@ -113,6 +118,9 @@ eyeLevel =
 
 
 port requestPointerLock : () -> Cmd msg
+
+
+port pointerLockChanged : (Encode.Value -> msg) -> Sub msg
 
 
 
@@ -151,16 +159,29 @@ update action model =
         Animate dt ->
             ( { model
                 | person =
-                    model.person
-                        |> move model.keys
-                        |> gravity (dt / 500)
-                        |> physics (dt / 500)
+                    if model.pointerLockAcquired then
+                        model.person
+                            |> move model.keys
+                            |> gravity (dt / 500)
+                            |> physics (dt / 500)
+
+                    else
+                        model.person
               }
             , Cmd.none
             )
 
         PointerLockRequested ->
-            ( model, requestPointerLock () )
+            ( model
+            , if model.pointerLockAcquired then
+                Cmd.none
+
+              else
+                requestPointerLock ()
+            )
+
+        PointerLockChanged lockAcquired ->
+            ( { model | pointerLockAcquired = defaultToFalse lockAcquired }, Cmd.none )
 
 
 keyFunc : Bool -> Int -> Keys -> Keys
@@ -433,3 +454,8 @@ texturesDecoder =
 missingTextures : Textures
 missingTextures =
     { woodCratePath = "Missing" }
+
+
+defaultToFalse : Encode.Value -> Bool
+defaultToFalse bool =
+    Result.withDefault False (Decode.decodeValue Decode.bool bool)
