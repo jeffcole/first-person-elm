@@ -28,6 +28,7 @@ type alias Model =
     , size : { width : Float, height : Float }
     , person : Person
     , pointerLockAcquired : Bool
+    , message : String
     }
 
 
@@ -94,6 +95,7 @@ init flagsValue =
       , keys = Keys False False False False False
       , size = { width = 0, height = 0 }
       , pointerLockAcquired = False
+      , message = welcomeMessage
       }
     , Cmd.batch
         [ Task.attempt CrateTextureLoaded (Texture.load flags.textures.woodCratePath)
@@ -194,8 +196,22 @@ update action model =
                 requestPointerLock ()
             )
 
-        PointerLockChanged lockAcquired ->
-            ( { model | pointerLockAcquired = defaultToFalse lockAcquired }, Cmd.none )
+        PointerLockChanged isLockAcquired ->
+            let
+                lockAcquired =
+                    defaultToFalse isLockAcquired
+            in
+            ( { model
+                | pointerLockAcquired = lockAcquired
+                , message =
+                    if lockAcquired then
+                        movementMessage
+
+                    else
+                        welcomeMessage
+              }
+            , Cmd.none
+            )
 
         PointerMoved movement ->
             ( { model | person = turn (defaultToNone movement) model.person }, Cmd.none )
@@ -339,7 +355,7 @@ gravity dt person =
 
 
 view : Model -> Html Msg
-view { size, person, crateTexture, grassTexture } =
+view { size, person, crateTexture, grassTexture, message } =
     div
         [ style "width" (String.fromFloat size.width ++ "px")
         , style "height" (String.fromFloat size.height ++ "px")
@@ -371,10 +387,15 @@ view { size, person, crateTexture, grassTexture } =
         ]
 
 
-message : String
-message =
-    "Walk around with a first person perspective.\n"
-        ++ "W-A-S-D keys to move, space bar to jump."
+welcomeMessage : String
+welcomeMessage =
+    "Click the screen to play!"
+
+
+movementMessage : String
+movementMessage =
+    "Walk around with a first person perspective. "
+        ++ "Pointer to look around, W-A-S-D keys to move, space bar to jump."
 
 
 scene : { width : Float, height : Float } -> Person -> Texture -> Texture -> List Entity
