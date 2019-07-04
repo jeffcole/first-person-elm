@@ -16,7 +16,7 @@ const app = Elm.Main.init({
 
 const body = document.body;
 
-app.ports.requestPointerLock.subscribe(() => {
+app.ports.requestPlay.subscribe(() => {
   body.requestFullscreen =
     body.requestFullscreen ||
     body.mozRequestFullscreen ||
@@ -73,10 +73,10 @@ const fullscreenChange = () => {
 const pointerLockChange = () => {
   if (isLocked(body)) {
     body.addEventListener("mousemove", move, false);
-    app.ports.pointerLockChanged.send(true);
+    app.ports.playingChanged.send(true);
   } else {
     body.removeEventListener("mousemove", move, false);
-    app.ports.pointerLockChanged.send(false);
+    app.ports.playingChanged.send(false);
   }
 };
 

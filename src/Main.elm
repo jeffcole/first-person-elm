@@ -27,7 +27,7 @@ type alias Model =
     , keys : Keys
     , size : { width : Float, height : Float }
     , person : Person
-    , pointerLockAcquired : Bool
+    , playing : Bool
     , message : String
     }
 
@@ -47,8 +47,8 @@ type Msg
     | Animate Float
     | GetViewport Viewport
     | Resize Int Int
-    | PointerLockRequested
-    | PointerLockChanged Encode.Value
+    | PlayRequested
+    | PlayingChanged Encode.Value
     | PointerMoved Encode.Value
 
 
@@ -94,7 +94,7 @@ init flagsValue =
       , person = Person (vec3 0 eyeLevel -10) (vec3 0 0 0) (degrees 90) 0
       , keys = Keys False False False False False
       , size = { width = 0, height = 0 }
-      , pointerLockAcquired = False
+      , playing = False
       , message = welcomeMessage
       }
     , Cmd.batch
@@ -112,8 +112,8 @@ subscriptions _ =
         , onKeyDown (Decode.map (KeyChange True) keyCode)
         , onKeyUp (Decode.map (KeyChange False) keyCode)
         , onResize Resize
-        , onClick (Decode.succeed PointerLockRequested)
-        , pointerLockChanged PointerLockChanged
+        , onClick (Decode.succeed PlayRequested)
+        , playingChanged PlayingChanged
         , pointerMovement PointerMoved
         ]
 
@@ -127,10 +127,10 @@ eyeLevel =
 ---- PORTS
 
 
-port requestPointerLock : () -> Cmd msg
+port requestPlay : () -> Cmd msg
 
 
-port pointerLockChanged : (Encode.Value -> msg) -> Sub msg
+port playingChanged : (Encode.Value -> msg) -> Sub msg
 
 
 port pointerMovement : (Encode.Value -> msg) -> Sub msg
@@ -175,7 +175,7 @@ update action model =
         Animate dt ->
             ( { model
                 | person =
-                    if model.pointerLockAcquired then
+                    if model.playing then
                         model.person
                             |> move model.keys
                             |> gravity (dt / 500)
@@ -187,22 +187,22 @@ update action model =
             , Cmd.none
             )
 
-        PointerLockRequested ->
+        PlayRequested ->
             ( model
-            , if model.pointerLockAcquired then
+            , if model.playing then
                 Cmd.none
 
               else
-                requestPointerLock ()
+                requestPlay ()
             )
 
-        PointerLockChanged isLockAcquired ->
+        PlayingChanged isLockAcquired ->
             let
                 lockAcquired =
                     defaultToFalse isLockAcquired
             in
             ( { model
-                | pointerLockAcquired = lockAcquired
+                | playing = lockAcquired
                 , message =
                     if lockAcquired then
                         movementMessage
