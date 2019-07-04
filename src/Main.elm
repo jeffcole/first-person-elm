@@ -342,6 +342,7 @@ view { size, person, texture } =
         ]
         [ WebGL.toHtmlWith
             [ WebGL.depth 1
+            , WebGL.clearColor 0 0.75 1 0
             ]
             [ width (round size.width)
             , height (round size.height)
