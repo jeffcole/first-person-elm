@@ -17,14 +17,22 @@ const app = Elm.Main.init({
 const body = document.body;
 
 app.ports.requestPointerLock.subscribe(() => {
-  body.requestPointerLock =
-    body.requestPointerLock ||
-    body.mozRequestPointerLock ||
-    body.msRequestPointerLock ||
-    body.webkitRequestPointerLock;
+  body.requestFullscreen =
+    body.requestFullscreen ||
+    body.mozRequestFullscreen ||
+    body.msRequestFullscreen ||
+    body.webkitRequestFullscreen;
 
-  body.requestPointerLock();
+  Promise.resolve(body.requestFullscreen()).catch(reason => {
+    console.error("`requestFullscreen` failed:", reason);
+  });
 });
+
+const isFullscreen = element =>
+  element === document.fullscreenElement ||
+  element === document.mozFullscreenElement ||
+  element === document.msFullscreenElement ||
+  element === document.webkitFullscreenElement;
 
 const isLocked = element =>
   element === document.pointerLockElement ||
@@ -50,6 +58,18 @@ const move = event => {
   app.ports.pointerMovement.send([movementX, movementY]);
 };
 
+const fullscreenChange = () => {
+  if (isFullscreen(body)) {
+    body.requestPointerLock =
+      body.requestPointerLock ||
+      body.mozRequestPointerLock ||
+      body.msRequestPointerLock ||
+      body.webkitRequestPointerLock;
+
+    body.requestPointerLock();
+  }
+};
+
 const pointerLockChange = () => {
   if (isLocked(body)) {
     body.addEventListener("mousemove", move, false);
@@ -59,6 +79,18 @@ const pointerLockChange = () => {
     app.ports.pointerLockChanged.send(false);
   }
 };
+
+[
+  "onfullscreenchange",
+  "onmozfullscreenchange",
+  "onmsfullscreenchange",
+  "onwebkitfullscreenchange"
+].forEach(property => {
+  if (property in document) {
+    const event = property.slice(2);
+    document.addEventListener(event, fullscreenChange, false);
+  }
+});
 
 [
   "onpointerlockchange",
