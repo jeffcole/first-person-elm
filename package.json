@@ -1,0 +1,11 @@
+{
+  "name": "first-person-elm",
+  "version": "1.0.0",
+  "description": "A demo of first-person perspective and navigation in Elm",
+  "author": "Jeff Cole",
+  "license": "MIT",
+  "dependencies": {
+    "esm": "^3.2.25"
+  },
+  "devDependencies": {}
+}
