@@ -1,8 +1,8 @@
-module Main exposing (main)
+port module Main exposing (main)
 
 import Browser
 import Browser.Dom exposing (Viewport, getViewport)
-import Browser.Events exposing (onAnimationFrameDelta, onKeyDown, onKeyUp, onResize)
+import Browser.Events exposing (onAnimationFrameDelta, onClick, onKeyDown, onKeyUp, onResize)
 import Html exposing (Html, div, text)
 import Html.Attributes exposing (height, style, width)
 import Html.Events exposing (keyCode)
@@ -40,6 +40,7 @@ type Msg
     | Animate Float
     | GetViewport Viewport
     | Resize Int Int
+    | PointerLockRequested
 
 
 type alias Keys =
@@ -98,12 +99,20 @@ subscriptions _ =
         , onKeyDown (Decode.map (KeyChange True) keyCode)
         , onKeyUp (Decode.map (KeyChange False) keyCode)
         , onResize Resize
+        , onClick (Decode.succeed PointerLockRequested)
         ]
 
 
 eyeLevel : Float
 eyeLevel =
     2
+
+
+
+---- PORTS
+
+
+port requestPointerLock : () -> Cmd msg
 
 
 
@@ -149,6 +158,9 @@ update action model =
               }
             , Cmd.none
             )
+
+        PointerLockRequested ->
+            ( model, requestPointerLock () )
 
 
 keyFunc : Bool -> Int -> Keys -> Keys
