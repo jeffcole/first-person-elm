@@ -22,7 +22,8 @@ import WebGL.Texture as Texture exposing (Error, Texture)
 
 
 type alias Model =
-    { texture : Maybe Texture
+    { crateTexture : Maybe Texture
+    , grassTexture : Maybe Texture
     , keys : Keys
     , size : { width : Float, height : Float }
     , person : Person
@@ -39,7 +40,8 @@ type alias Person =
 
 
 type Msg
-    = TextureLoaded (Result Error Texture)
+    = CrateTextureLoaded (Result Error Texture)
+    | GrassTextureLoaded (Result Error Texture)
     | KeyChange Bool Int
     | Animate Float
     | GetViewport Viewport
@@ -63,7 +65,7 @@ type alias Flags =
 
 
 type alias Textures =
-    { woodCratePath : String }
+    { grassPath : String, woodCratePath : String }
 
 
 
@@ -86,14 +88,16 @@ init flagsValue =
         flags =
             decodeFlags flagsValue
     in
-    ( { texture = Nothing
+    ( { crateTexture = Nothing
+      , grassTexture = Nothing
       , person = Person (vec3 0 eyeLevel -10) (vec3 0 0 0) (degrees 90) 0
       , keys = Keys False False False False False
       , size = { width = 0, height = 0 }
       , pointerLockAcquired = False
       }
     , Cmd.batch
-        [ Task.attempt TextureLoaded (Texture.load flags.textures.woodCratePath)
+        [ Task.attempt CrateTextureLoaded (Texture.load flags.textures.woodCratePath)
+        , Task.attempt GrassTextureLoaded (Texture.load flags.textures.grassPath)
         , Task.perform GetViewport getViewport
         ]
     )
@@ -137,8 +141,11 @@ port pointerMovement : (Encode.Value -> msg) -> Sub msg
 update : Msg -> Model -> ( Model, Cmd Msg )
 update action model =
     case action of
-        TextureLoaded textureResult ->
-            ( { model | texture = Result.toMaybe textureResult }, Cmd.none )
+        CrateTextureLoaded textureResult ->
+            ( { model | crateTexture = Result.toMaybe textureResult }, Cmd.none )
+
+        GrassTextureLoaded textureResult ->
+            ( { model | grassTexture = Result.toMaybe textureResult }, Cmd.none )
 
         KeyChange on code ->
             ( { model | keys = keyFunc on code model.keys }, Cmd.none )
@@ -332,7 +339,7 @@ gravity dt person =
 
 
 view : Model -> Html Msg
-view { size, person, texture } =
+view { size, person, crateTexture, grassTexture } =
     div
         [ style "width" (String.fromFloat size.width ++ "px")
         , style "height" (String.fromFloat size.height ++ "px")
@@ -348,8 +355,7 @@ view { size, person, texture } =
             , height (round size.height)
             , style "display" "block"
             ]
-            (texture
-                |> Maybe.map (scene size person)
+            (Maybe.map2 (scene size person) crateTexture grassTexture
                 |> Maybe.withDefault []
             )
         , div
@@ -371,8 +377,8 @@ message =
         ++ "Arrows keys to move, space bar to jump."
 
 
-scene : { width : Float, height : Float } -> Person -> Texture -> List Entity
-scene { width, height } person texture =
+scene : { width : Float, height : Float } -> Person -> Texture -> Texture -> List Entity
+scene { width, height } person crateTexture grassTexture =
     let
         perspective =
             Mat4.mul
@@ -387,9 +393,12 @@ scene { width, height } person texture =
         vertexShader
         fragmentShader
         crate
-        { texture = texture
-        , perspective = perspective
-        }
+        { texture = crateTexture, perspective = perspective }
+    , WebGL.entity
+        vertexShader
+        fragmentShader
+        ground
+        { texture = grassTexture, perspective = perspective }
     ]
 
 
@@ -419,6 +428,24 @@ crate : Mesh Vertex
 crate =
     [ ( 0, 0 ), ( 90, 0 ), ( 180, 0 ), ( 270, 0 ), ( 0, 90 ), ( 0, -90 ) ]
         |> List.concatMap rotatedSquare
+        |> WebGL.triangles
+
+
+ground : Mesh Vertex
+ground =
+    let
+        scale vertex =
+            { vertex
+                | position =
+                    vec3
+                        (Vec3.getX vertex.position * 20)
+                        (Vec3.getY vertex.position)
+                        (Vec3.getZ vertex.position * 20)
+            }
+    in
+    ( 0, 90 )
+        |> rotatedSquare
+        |> List.map (\( v1, v2, v3 ) -> ( scale v1, scale v2, scale v3 ))
         |> WebGL.triangles
 
 
@@ -526,12 +553,13 @@ flagsDecoder =
 texturesDecoder : Decoder Textures
 texturesDecoder =
     Decode.succeed Textures
+        |> DecodePipeline.required "grassPath" Decode.string
         |> DecodePipeline.required "woodCratePath" Decode.string
 
 
 missingTextures : Textures
 missingTextures =
-    { woodCratePath = "Missing" }
+    { grassPath = "Missing", woodCratePath = "Missing" }
 
 
 defaultToFalse : Encode.Value -> Bool

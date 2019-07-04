@@ -1,11 +1,17 @@
 import "./main.css";
+import grassPath from "../textures/grass.jpg";
 import woodCratePath from "../textures/wood-crate.jpg";
 import { Elm } from "./Main.elm";
 import registerServiceWorker from "./registerServiceWorker";
 
 const app = Elm.Main.init({
   node: document.getElementById("root"),
-  flags: { textures: { woodCratePath } }
+  flags: {
+    textures: {
+      grassPath,
+      woodCratePath
+    }
+  }
 });
 
 const body = document.body;
